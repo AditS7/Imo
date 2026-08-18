@@ -16,6 +16,6 @@ SPONTANEOUS_COOLDOWN_SECONDS = int(os.getenv("SPONTANEOUS_COOLDOWN_SECONDS", "60
 MAX_HISTORY_MESSAGES = int(os.getenv("MAX_HISTORY_MESSAGES", "20"))
 
 # AI Settings
-MODEL_NAME = "gemini-3.1-flash-lite"
+MODEL_NAME = "gemini-3.1-flash-lite-preview"
 TEMPERATURE = 0.7
 MAX_OUTPUT_TOKENS = 800
