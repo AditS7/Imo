@@ -71,12 +71,25 @@ async def handle_message(bot, message: discord.Message):
                 # We format Imo's response
                 clean_response = response.strip()
                 
+                if not clean_response:
+                    clean_response = "*just stares blankly* (I overthought that and forgot to speak 💀)"
+
                 # Send the response (replying to the user if directly called, or just sending if spontaneous)
                 try:
-                    if is_direct_call:
-                        await message.reply(clean_response, mention_author=False)
+                    # Discord has a strict 2000 character limit per message
+                    if len(clean_response) > 2000:
+                        # Split into chunks of 2000 chars
+                        chunks = [clean_response[i:i+1999] for i in range(0, len(clean_response), 1999)]
+                        for i, chunk in enumerate(chunks):
+                            if i == 0 and is_direct_call:
+                                await message.reply(chunk, mention_author=False)
+                            else:
+                                await message.channel.send(chunk)
                     else:
-                        await message.channel.send(clean_response)
+                        if is_direct_call:
+                            await message.reply(clean_response, mention_author=False)
+                        else:
+                            await message.channel.send(clean_response)
                         
                     # Add Imo's response to memory
                     add_message(channel_id, "Imo", clean_response, is_bot=True)
