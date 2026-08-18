@@ -45,7 +45,7 @@ async def generate_response(prompt: str, history: list = None) -> str:
         # We need to strip these tags out so they don't show up in Discord.
         raw_content = chat_completion.choices[0].message.content
         import re
-        clean_content = re.sub(r'<think>.*?</think>', '', raw_content, flags=re.DOTALL).strip()
+        clean_content = re.sub(r'<think>.*?(?:</think>|$)', '', raw_content, flags=re.DOTALL).strip()
         
         return clean_content
     except Exception as e:
