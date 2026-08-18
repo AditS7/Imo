@@ -1,27 +1,26 @@
+import os
 import logging
 from groq import AsyncGroq
-from bot.config import GROQ_API_KEY, MODEL_NAME, TEMPERATURE, MAX_OUTPUT_TOKENS
+from bot.config import MODEL_NAME, TEMPERATURE, MAX_OUTPUT_TOKENS
 from bot.personality import SYSTEM_INSTRUCTION
 
 logger = logging.getLogger(__name__)
-
-# Initialize the Groq client
-client = None
-if GROQ_API_KEY:
-    try:
-        client = AsyncGroq(api_key=GROQ_API_KEY)
-    except Exception as e:
-        logger.error(f"Failed to initialize Groq client: {e}")
 
 async def generate_response(prompt: str, history: list = None) -> str:
     """
     Generates a response from Groq given the prompt and conversation history.
     """
-    if not client:
-        logger.error("Groq client is not initialized.")
-        return "my brain just lagged 💀 give me a sec"
+    # Grab the key directly from the environment exactly when needed
+    api_key = os.getenv("GROQ_API_KEY")
     
+    if not api_key:
+        logger.error("GROQ_API_KEY is missing from the OS environment variables!")
+        return "my brain just lagged 💀 (API Key missing in Railway)"
+
     try:
+        # Initialize client here to prevent startup race conditions
+        client = AsyncGroq(api_key=api_key)
+        
         messages = [
             {"role": "system", "content": SYSTEM_INSTRUCTION}
         ]
@@ -44,4 +43,4 @@ async def generate_response(prompt: str, history: list = None) -> str:
         return chat_completion.choices[0].message.content
     except Exception as e:
         logger.error(f"Groq API Error: {e}")
-        return "my brain just lagged 💀 give me a sec"
+        return f"my brain just lagged 💀 (Error: {e})"
