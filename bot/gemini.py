@@ -52,6 +52,7 @@ async def generate_response(prompt: str, history: list = None) -> str:
                 system_instruction=SYSTEM_INSTRUCTION,
                 temperature=TEMPERATURE,
                 max_output_tokens=MAX_OUTPUT_TOKENS,
+                tools=[{"google_search": {}}]
             )
         )
         return response.text
