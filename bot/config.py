@@ -5,7 +5,7 @@ load_dotenv()
 
 # Secrets
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 # Spontaneous settings
 SPONTANEOUS_REPLY_ENABLED = os.getenv("SPONTANEOUS_REPLY_ENABLED", "true").lower() == "true"
@@ -16,6 +16,6 @@ SPONTANEOUS_COOLDOWN_SECONDS = int(os.getenv("SPONTANEOUS_COOLDOWN_SECONDS", "60
 MAX_HISTORY_MESSAGES = int(os.getenv("MAX_HISTORY_MESSAGES", "3"))
 
 # AI Settings
-MODEL_NAME = "gemini-3.1-flash-lite-preview"
+MODEL_NAME = "llama-3.3-70b-versatile"
 TEMPERATURE = 0.7
 MAX_OUTPUT_TOKENS = 800

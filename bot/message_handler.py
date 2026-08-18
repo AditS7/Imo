@@ -3,7 +3,7 @@ import random
 import time
 import logging
 from bot.memory import add_message, get_history
-from bot.gemini import generate_response
+from bot.ai import generate_response
 import bot.config as config
 
 logger = logging.getLogger(__name__)
