@@ -40,7 +40,14 @@ async def generate_response(prompt: str, history: list = None) -> str:
             temperature=TEMPERATURE,
             max_tokens=MAX_OUTPUT_TOKENS,
         )
-        return chat_completion.choices[0].message.content
+        
+        # Qwen models often output their reasoning process inside <think> tags.
+        # We need to strip these tags out so they don't show up in Discord.
+        raw_content = chat_completion.choices[0].message.content
+        import re
+        clean_content = re.sub(r'<think>.*?</think>', '', raw_content, flags=re.DOTALL).strip()
+        
+        return clean_content
     except Exception as e:
         logger.error(f"Groq API Error: {e}")
         return f"my brain just lagged 💀 (Error: {e})"
