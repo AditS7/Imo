@@ -5,7 +5,7 @@ load_dotenv()
 
 # Secrets
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 # Spontaneous settings
 SPONTANEOUS_REPLY_ENABLED = os.getenv("SPONTANEOUS_REPLY_ENABLED", "true").lower() == "true"
