@@ -95,10 +95,10 @@ async def generate_response(prompt: str, history: list = None) -> str:
         )
         
         response_message = chat_completion.choices[0].message
-        
-        # Did the AI decide to call a tool?
+        raw_content = response_message.content or ""
+
+        # Did the AI decide to call a tool using standard JSON?
         if response_message.tool_calls:
-            # Add the AI's tool call request to the conversation history
             messages.append(response_message)
             
             for tool_call in response_message.tool_calls:
@@ -106,13 +106,12 @@ async def generate_response(prompt: str, history: list = None) -> str:
                     try:
                         args = json.loads(tool_call.function.arguments)
                         query = args.get("query", "")
-                        logger.info(f"AI is searching the web for: {query}")
+                        logger.info(f"AI is searching the web (JSON) for: {query}")
                         search_results = await search_web(query)
                     except Exception as e:
                         logger.error(f"Tool call error: {e}")
                         search_results = f"Error executing search: {e}"
                     
-                    # Feed the search results back to the AI
                     messages.append({
                         "role": "tool",
                         "tool_call_id": tool_call.id,
@@ -120,7 +119,6 @@ async def generate_response(prompt: str, history: list = None) -> str:
                         "content": search_results
                     })
             
-            # Second call - the AI reads the search results and formulates its final answer
             chat_completion = await client.chat.completions.create(
                 messages=messages,
                 model=MODEL_NAME,
@@ -128,9 +126,30 @@ async def generate_response(prompt: str, history: list = None) -> str:
                 max_tokens=MAX_OUTPUT_TOKENS
             )
             response_message = chat_completion.choices[0].message
+            raw_content = response_message.content or ""
+            
+        # Fallback: Did Qwen leak the tool call into the raw content as XML/text?
+        elif "<tool_call>" in raw_content or "search_web" in raw_content:
+            # Try to extract the query from the leaked XML
+            match = re.search(r'query>?(?:\s*|["\']?)([^<"\'\n]+)', raw_content, flags=re.IGNORECASE)
+            if match:
+                query = match.group(1).strip()
+                logger.info(f"AI is searching the web (XML fallback) for: {query}")
+                search_results = await search_web(query)
+                
+                messages.append({"role": "assistant", "content": raw_content})
+                messages.append({"role": "user", "content": f"Here are the web search results for '{query}':\n\n{search_results}\n\nNow, ignore your previous XML block and give me a normal conversational response."})
+                
+                chat_completion = await client.chat.completions.create(
+                    messages=messages,
+                    model=MODEL_NAME,
+                    temperature=TEMPERATURE,
+                    max_tokens=MAX_OUTPUT_TOKENS
+                )
+                response_message = chat_completion.choices[0].message
+                raw_content = response_message.content or ""
 
         # Strip <think> tags from the final content
-        raw_content = response_message.content or ""
         clean_content = re.sub(r'<think>.*?(?:</think>|$)', '', raw_content, flags=re.DOTALL).strip()
         
         return clean_content
