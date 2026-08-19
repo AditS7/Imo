@@ -130,10 +130,19 @@ async def generate_response(prompt: str, history: list = None) -> str:
             
         # Fallback: Did Qwen leak the tool call into the raw content as XML/text?
         elif "<tool_call>" in raw_content or "search_web" in raw_content:
-            # Try to extract the query from the leaked XML
-            match = re.search(r'query>?(?:\s*|["\']?)([^<"\'\n]+)', raw_content, flags=re.IGNORECASE)
-            if match:
-                query = match.group(1).strip()
+            query = None
+            
+            # Pattern 1: Qwen's specific <parameter=query> format
+            match1 = re.search(r'<parameter=query>\s*(.*?)\s*</parameter>', raw_content, flags=re.IGNORECASE | re.DOTALL)
+            if match1:
+                query = match1.group(1).strip()
+            else:
+                # Pattern 2: Generic fallback
+                match2 = re.search(r'query>?(?:\s*|["\']?)([^<"\'\n]+)', raw_content, flags=re.IGNORECASE)
+                if match2:
+                    query = match2.group(1).strip()
+            
+            if query:
                 logger.info(f"AI is searching the web (XML fallback) for: {query}")
                 search_results = await search_web(query)
                 
@@ -148,6 +157,9 @@ async def generate_response(prompt: str, history: list = None) -> str:
                 )
                 response_message = chat_completion.choices[0].message
                 raw_content = response_message.content or ""
+            else:
+                # If we couldn't parse the query, just strip the XML block so it doesn't leak to Discord
+                raw_content = re.sub(r'<tool_call>.*?</tool_call>', '', raw_content, flags=re.DOTALL | re.IGNORECASE).strip()
 
         # Strip <think> tags from the final content
         clean_content = re.sub(r'<think>.*?(?:</think>|$)', '', raw_content, flags=re.DOTALL).strip()
