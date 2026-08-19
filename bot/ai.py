@@ -102,6 +102,7 @@ async def generate_response(prompt: str, history: list = None) -> str:
             messages.append(response_message.model_dump(exclude_unset=True))
             
             for tool_call in response_message.tool_calls:
+                logger.info(f"AI requested tool: {tool_call.function.name}")
                 if tool_call.function.name == "search_web":
                     try:
                         args = json.loads(tool_call.function.arguments)
@@ -118,13 +119,22 @@ async def generate_response(prompt: str, history: list = None) -> str:
                         "name": tool_call.function.name,
                         "content": search_results
                     })
+                else:
+                    logger.warning(f"AI called unknown tool: {tool_call.function.name}")
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": tool_call.function.name,
+                        "content": "Error: Unknown tool. Please reply directly to the user."
+                    })
             
             # Second call with the results
             chat_completion = await client.chat.completions.create(
                 messages=messages,
                 model=MODEL_NAME,
                 temperature=TEMPERATURE,
-                max_tokens=MAX_OUTPUT_TOKENS
+                max_tokens=MAX_OUTPUT_TOKENS,
+                tools=tools
             )
             response_message = chat_completion.choices[0].message
             
