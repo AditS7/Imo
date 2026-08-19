@@ -3,7 +3,7 @@ import logging
 import json
 import re
 import httpx
-from groq import AsyncGroq
+from openai import AsyncOpenAI
 from bot.config import MODEL_NAME, TEMPERATURE, MAX_OUTPUT_TOKENS
 from bot.personality import SYSTEM_INSTRUCTION
 
@@ -40,17 +40,27 @@ async def search_web(query: str) -> str:
 
 async def generate_response(prompt: str, history: list = None) -> str:
     """
-    Generates a response from Groq given the prompt and conversation history.
-    Includes Tool Calling logic to allow the AI to search the web.
+    Generates a response using the OpenAI SDK (routed to OpenRouter/Groq depending on env)
     """
-    api_key = os.getenv("GROQ_API_KEY")
+    # Grab the key and base url from env
     
+    # Determine the correct API key and Base URL
+    # If the model starts with 'openai/' or we are explicitly using OpenRouter
+    if "openai/" in MODEL_NAME or os.getenv("OPENROUTER_API_KEY"):
+        api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPENROUTER_API_KEY")
+        base_url = os.getenv("OPENAI_BASE_URL") or os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+    else:
+        # Default back to Groq if using Groq models like llama-3.1-8b-instant
+        api_key = os.getenv("GROQ_API_KEY")
+        base_url = "https://api.groq.com/openai/v1"
+        
     if not api_key:
-        logger.error("GROQ_API_KEY is missing from the OS environment variables!")
+        logger.error("API Key is missing from the OS environment variables!")
         return "my brain just lagged 💀 (API Key missing in Railway)"
 
     try:
-        client = AsyncGroq(api_key=api_key)
+        # Initialize standard OpenAI client pointing to the custom base URL (Groq or OpenRouter)
+        client = AsyncOpenAI(api_key=api_key, base_url=base_url)
         
         messages = [
             {"role": "system", "content": SYSTEM_INSTRUCTION}
@@ -99,7 +109,8 @@ async def generate_response(prompt: str, history: list = None) -> str:
 
         # Did the AI decide to call a tool using standard JSON?
         if response_message.tool_calls:
-            messages.append(response_message)
+            # When using tools, we must append the assistant's message as a dict
+            messages.append(response_message.model_dump(exclude_unset=True))
             
             for tool_call in response_message.tool_calls:
                 if tool_call.function.name == "search_web":
@@ -128,11 +139,11 @@ async def generate_response(prompt: str, history: list = None) -> str:
             response_message = chat_completion.choices[0].message
             raw_content = response_message.content or ""
             
-        # Fallback: Did Qwen leak the tool call into the raw content as XML/text?
+        # Fallback: Did the model leak the tool call into the raw content as XML/text?
         elif "<tool_call>" in raw_content or "search_web" in raw_content:
             query = None
             
-            # Pattern 1: Qwen's specific <parameter=query> format
+            # Pattern 1: specific <parameter=query> format
             match1 = re.search(r'<parameter=query>\s*(.*?)\s*</parameter>', raw_content, flags=re.IGNORECASE | re.DOTALL)
             if match1:
                 query = match1.group(1).strip()
@@ -166,5 +177,5 @@ async def generate_response(prompt: str, history: list = None) -> str:
         
         return clean_content
     except Exception as e:
-        logger.error(f"Groq API Error: {e}")
+        logger.error(f"API Error: {e}")
         return f"my brain just lagged 💀 (Error: {e})"
