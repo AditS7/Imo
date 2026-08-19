@@ -105,8 +105,27 @@ async def generate_response(prompt: str, history: list = None) -> str:
                 logger.info(f"AI requested tool: {tool_call.function.name}")
                 if tool_call.function.name == "search_web":
                     try:
-                        args = json.loads(tool_call.function.arguments)
-                        query = args.get("query", "")
+                        args_str = tool_call.function.arguments
+                        query = ""
+                        try:
+                            args = json.loads(args_str)
+                            query = args.get("query", "")
+                        except json.JSONDecodeError as json_err:
+                            logger.error(f"Tool call JSON error: {json_err} - Raw args: {args_str}")
+                            # Fallback 1: Extract using regex if JSON is malformed
+                            import re
+                            match = re.search(r'"query"\s*:\s*"([^"]+)"', args_str)
+                            if match:
+                                query = match.group(1)
+                            else:
+                                # Fallback 2: relaxed regex
+                                match2 = re.search(r'query.*?[:=]\s*(?:["\']?)([^"\'\}]+)', args_str)
+                                if match2:
+                                    query = match2.group(1).strip()
+                                else:
+                                    # Absolute fallback, just search the user's prompt or generic kingshot
+                                    query = "Kingshot Century Games best heroes meta"
+                        
                         logger.info(f"AI is searching the web for: {query}")
                         search_results = await search_web(query)
                     except Exception as e:
