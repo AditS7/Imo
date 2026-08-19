@@ -69,7 +69,7 @@ async def generate_response(prompt: str, history: list = None) -> str:
                 "type": "function",
                 "function": {
                     "name": "search_web",
-                    "description": "Searches the web for up-to-date information, news, or facts about a topic. Use this when the user asks about real-world events, current meta, or things you aren't certain about.",
+                    "description": "Searches the web for up-to-date information, news, or facts about a topic. You MUST use this tool WHENEVER the user asks a question about the game 'Kingshot' (Century Games), its meta, heroes, or mechanics. Do not guess Kingshot info, always search first.",
                     "parameters": {
                         "type": "object",
                         "properties": {
