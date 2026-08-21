@@ -16,7 +16,7 @@ SPONTANEOUS_COOLDOWN_SECONDS = int(os.getenv("SPONTANEOUS_COOLDOWN_SECONDS", "60
 MAX_HISTORY_MESSAGES = int(os.getenv("MAX_HISTORY_MESSAGES", "3"))
 
 # AI Settings
-MODEL_NAME = "nvidia/nemotron-3-ultra-550b-a55b:free"
-FALLBACK_MODELS = []
+MODEL_NAME = "google/gemma-4-31b-it:free"
+FALLBACK_MODELS = ["google/gemma-4-26b-a4b-it:free"]
 TEMPERATURE = 0.7
 MAX_OUTPUT_TOKENS = 4096
