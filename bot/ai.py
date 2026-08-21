@@ -47,7 +47,9 @@ async def generate_response(prompt: str, history: list = None) -> str:
     
     if not api_key:
         logger.error("API Key is missing from the OS environment variables!")
-        return "my brain just lagged 💀 (API Key missing in Railway)    try:
+        return "my brain just lagged 💀 (API Key missing in Railway)"
+
+    try:
         client = AsyncOpenAI(api_key=api_key, base_url=base_url)
         
         messages = [
