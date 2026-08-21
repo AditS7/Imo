@@ -2,6 +2,7 @@ import os
 import logging
 import json
 import httpx
+import re
 from openai import AsyncOpenAI, RateLimitError, APIStatusError
 from bot.config import MODEL_NAME, FALLBACK_MODELS, TEMPERATURE, MAX_OUTPUT_TOKENS
 from bot.personality import SYSTEM_INSTRUCTION
@@ -162,6 +163,9 @@ async def generate_response(prompt: str, history: list = None) -> str:
                     response_message = chat_completion.choices[0].message
                     
                 content = response_message.content
+                if content:
+                    # Strip any "Imo:" or "**Imo:**" prefix forcibly
+                    content = re.sub(r'^(?:\*\*Imo\*\*|Imo)\s*:\s*', '', content.strip(), flags=re.IGNORECASE)
                 return content.strip() if content else ""
             except (RateLimitError, APIStatusError) as api_err:
                 # If we encounter a rate limit or 502/429 error, try the next model
