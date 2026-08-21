@@ -17,5 +17,10 @@ MAX_HISTORY_MESSAGES = int(os.getenv("MAX_HISTORY_MESSAGES", "3"))
 
 # AI Settings
 MODEL_NAME = "google/gemma-4-26b-a4b-it:free"
+FALLBACK_MODELS = [
+    "meta-llama/llama-3.1-8b-instruct:free",
+    "microsoft/phi-3-mini-128k-instruct:free",
+    "mistralai/mistral-7b-instruct:free"
+]
 TEMPERATURE = 0.7
 MAX_OUTPUT_TOKENS = 4096
