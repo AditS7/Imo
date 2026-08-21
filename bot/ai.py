@@ -3,7 +3,7 @@ import logging
 import json
 import httpx
 import re
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, RateLimitError
 from bot.config import MODEL_NAME, TEMPERATURE, MAX_OUTPUT_TOKENS
 from bot.personality import SYSTEM_INSTRUCTION
 
@@ -56,7 +56,7 @@ async def generate_response(prompt: str, history: list = None) -> str:
         return "my brain just lagged 💀 (API Key missing in Railway)"
 
     try:
-        client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        client = AsyncOpenAI(api_key=api_key, base_url=base_url, max_retries=0)
         
         messages = [
             {"role": "system", "content": SYSTEM_INSTRUCTION}
@@ -145,6 +145,9 @@ async def generate_response(prompt: str, history: list = None) -> str:
         
         return content if content else "I'm drawing a blank right now... 💀 (Error: Model returned empty response)"
             
+    except RateLimitError as e:
+        logger.error(f"Rate Limit Error: {e}")
+        return "Whoa, I'm getting too many messages at once! 😵‍💫 Give me a few seconds to catch my breath."
     except Exception as e:
         logger.error(f"API Error: {e}")
         return f"my brain just lagged 💀 (Error: {e})"
