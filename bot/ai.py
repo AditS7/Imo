@@ -139,7 +139,11 @@ async def generate_response(prompt: str, history: list = None) -> str:
             response_message = chat_completion.choices[0].message
             
         content = response_message.content
-        return content.strip() if content else "I'm drawing a blank right now... 💀 (Error: Model returned empty response)"
+        if content:
+            # Strip out reasoning blocks like <think>...</think>
+            content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
+        
+        return content if content else "I'm drawing a blank right now... 💀 (Error: Model returned empty response)"
             
     except Exception as e:
         logger.error(f"API Error: {e}")
