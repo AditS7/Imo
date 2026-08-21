@@ -134,13 +134,12 @@ async def generate_response(prompt: str, history: list = None) -> str:
                 messages=messages,
                 model=MODEL_NAME,
                 temperature=TEMPERATURE,
-                max_tokens=MAX_OUTPUT_TOKENS,
-                tools=tools
+                max_tokens=MAX_OUTPUT_TOKENS
             )
             response_message = chat_completion.choices[0].message
             
         content = response_message.content
-        return content.strip() if content else ""
+        return content.strip() if content else "I'm drawing a blank right now... 💀 (Error: Model returned empty response)"
             
     except Exception as e:
         logger.error(f"API Error: {e}")
