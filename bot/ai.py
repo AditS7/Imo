@@ -43,8 +43,13 @@ async def generate_response(prompt: str, history: list = None) -> str:
     """
     Generates a response using the OpenAI SDK (OpenRouter)
     """
-    api_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
-    base_url = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+    # Check for Groq API key first, otherwise default to OpenRouter
+    if os.getenv("GROQ_API_KEY"):
+        api_key = os.getenv("GROQ_API_KEY")
+        base_url = "https://api.groq.com/openai/v1"
+    else:
+        api_key = os.getenv("OPENROUTER_API_KEY") or os.getenv("OPENAI_API_KEY")
+        base_url = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
     
     if not api_key:
         logger.error("API Key is missing from the OS environment variables!")
