@@ -141,13 +141,16 @@ async def generate_response(prompt: str, history: list = None) -> str:
         content = response_message.content
         if content:
             # Strip out reasoning blocks like <think>...</think>
-            content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL).strip()
+            content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL)
+            # Strip out hallucinated tool_call blocks (including unclosed ones at the end)
+            content = re.sub(r'<tool_call>.*?(?:</tool_call>|$)', '', content, flags=re.DOTALL)
+            content = content.strip()
         
-        return content if content else "I'm drawing a blank right now... 💀 (Error: Model returned empty response)"
+        return content if content else ""
             
     except RateLimitError as e:
         logger.error(f"Rate Limit Error: {e}")
-        return "Whoa, I'm getting too many messages at once! 😵‍💫 Give me a few seconds to catch my breath."
+        return ""
     except Exception as e:
         logger.error(f"API Error: {e}")
-        return f"my brain just lagged 💀 (Error: {e})"
+        return ""
