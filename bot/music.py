@@ -74,6 +74,20 @@ class Music(commands.Cog):
         if not self.vc or not self.vc.is_connected():
             async with self.connecting_lock:
                 if not self.vc or not self.vc.is_connected():
+                    # Clear any zombie voice clients in memory
+                    if ctx.guild.voice_client:
+                        try:
+                            await ctx.guild.voice_client.disconnect(force=True)
+                        except Exception:
+                            pass
+                    
+                    # Hard-reset the voice state on Discord's backend to clear 4006 ghost sessions
+                    try:
+                        await ctx.guild.change_voice_state(channel=None)
+                        await asyncio.sleep(1)
+                    except Exception:
+                        pass
+
                     try:
                         self.vc = await channel.connect(timeout=60.0)
                     except Exception as e:
