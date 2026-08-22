@@ -22,7 +22,7 @@ FALLBACK_MODELS = [
     {
         "model": "Qwen/Qwen2.5-72B-Instruct",
         "api_key_env": "HF_API_KEY",
-        "base_url": "https://api-inference.huggingface.co/v1/"
+        "base_url": "https://router.huggingface.co/hf-inference/v1"
     }
 ]
 TEMPERATURE = 0.7
