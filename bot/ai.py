@@ -3,6 +3,7 @@ import logging
 import json
 import httpx
 import re
+from datetime import datetime
 from openai import AsyncOpenAI, RateLimitError
 from bot.config import MODEL_NAME, TEMPERATURE, MAX_OUTPUT_TOKENS
 from bot.personality import SYSTEM_INSTRUCTION
@@ -15,7 +16,7 @@ async def search_web(query: str) -> str:
     if not api_key:
         return "Error: TAVILY_API_KEY is not set in the environment variables."
     
-    # Use a faster timeout and slightly fewer results for speed
+    # Use advanced depth and more results to get the most recent and accurate information
     async with httpx.AsyncClient() as client:
         try:
             response = await client.post(
@@ -23,10 +24,10 @@ async def search_web(query: str) -> str:
                 json={
                     "api_key": api_key,
                     "query": query,
-                    "search_depth": "basic",
-                    "max_results": 2
+                    "search_depth": "advanced",
+                    "max_results": 4
                 },
-                timeout=5.0
+                timeout=8.0
             )
             response.raise_for_status()
             data = response.json()
@@ -58,8 +59,11 @@ async def generate_response(prompt: str, history: list = None) -> str:
     try:
         client = AsyncOpenAI(api_key=api_key, base_url=base_url, max_retries=0)
         
+        current_time = datetime.now().strftime("%B %d, %Y")
+        dynamic_system_prompt = f"{SYSTEM_INSTRUCTION}\n\n[SYSTEM NOTE: The current date is {current_time}. If the user asks for the 'latest' information, append the current month/year to your web search queries (e.g. 'Kingshot meta {current_time}') to ensure you fetch the most recent news.]"
+
         messages = [
-            {"role": "system", "content": SYSTEM_INSTRUCTION}
+            {"role": "system", "content": dynamic_system_prompt}
         ]
         
         if history:
