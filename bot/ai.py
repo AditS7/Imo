@@ -166,7 +166,10 @@ async def generate_response(prompt: str, history: list = None, message: discord.
         dynamic_system_prompt = f"{SYSTEM_INSTRUCTION}\n\n[SYSTEM NOTE: The current date is {current_time}. If the user asks for the 'latest' information, append the current month/year to your web search queries (e.g. 'Kingshot meta {current_time}') to ensure you fetch the most recent news. IMPORTANT: Keep your internal <think> block as brief as possible to prevent your output from being truncated by token limits.]"
         
         prompt_lower = prompt.lower()
-        if message and message.guild and any(kw in prompt_lower for kw in ["give", "remove", "role", "kick", "ban"]):
+        has_tags = "<@" in prompt
+        is_admin_cmd = any(kw in prompt_lower for kw in ["give", "remove", "role", "kick", "ban"])
+        
+        if message and message.guild and is_admin_cmd and not has_tags:
             roles_list = ", ".join([r.name for r in message.guild.roles if r.name != "@everyone"])
             members_list = ", ".join([m.display_name for m in list(message.guild.members)[:50]])
             dynamic_system_prompt += f"\n\n[SERVER ROLES (Exact Names): {roles_list}]\n[SERVER MEMBERS (Partial List): {members_list}]"
