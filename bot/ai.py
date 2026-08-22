@@ -24,8 +24,8 @@ async def search_web(query: str) -> str:
                 json={
                     "api_key": api_key,
                     "query": query,
-                    "search_depth": "advanced",
-                    "max_results": 4
+                    "search_depth": "basic",
+                    "max_results": 3
                 },
                 timeout=8.0
             )
@@ -35,7 +35,12 @@ async def search_web(query: str) -> str:
             context = []
             for res in results:
                 context.append(f"Source: {res.get('url')}\nContent: {res.get('content')}")
-            return "\n\n".join(context) if context else "No relevant results found."
+            
+            full_context = "\n\n".join(context) if context else "No relevant results found."
+            # Truncate to save tokens and prevent rate limit errors on the second request
+            if len(full_context) > 2500:
+                full_context = full_context[:2500] + "... [TRUNCATED FOR LENGTH]"
+            return full_context
         except Exception as e:
             logger.error(f"Tavily search failed: {e}")
             return f"Search failed: {e}"
