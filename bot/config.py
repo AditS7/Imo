@@ -20,9 +20,9 @@ MAX_HISTORY_MESSAGES = int(os.getenv("MAX_HISTORY_MESSAGES", "3"))
 MODEL_NAME = "qwen/qwen3.6-27b"
 FALLBACK_MODELS = [
     {
-        "model": "meta-llama/Meta-Llama-3-8B-Instruct",
+        "model": "Qwen/Qwen3.8-27B",
         "api_key_env": "HF_API_KEY",
-        "base_url": "https://api-inference.huggingface.co/v1/"
+        "base_url": "https://api-inference.huggingface.co/v1"
     }
 ]
 TEMPERATURE = 0.7
