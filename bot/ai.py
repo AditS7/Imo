@@ -165,7 +165,8 @@ async def generate_response(prompt: str, history: list = None, message: discord.
         current_time = datetime.now().strftime("%B %d, %Y")
         dynamic_system_prompt = f"{SYSTEM_INSTRUCTION}\n\n[SYSTEM NOTE: The current date is {current_time}. If the user asks for the 'latest' information, append the current month/year to your web search queries (e.g. 'Kingshot meta {current_time}') to ensure you fetch the most recent news. IMPORTANT: Keep your internal <think> block as brief as possible to prevent your output from being truncated by token limits.]"
         
-        if message and message.guild:
+        prompt_lower = prompt.lower()
+        if message and message.guild and any(kw in prompt_lower for kw in ["give", "remove", "role", "kick", "ban"]):
             roles_list = ", ".join([r.name for r in message.guild.roles if r.name != "@everyone"])
             members_list = ", ".join([m.display_name for m in list(message.guild.members)[:50]])
             dynamic_system_prompt += f"\n\n[SERVER ROLES (Exact Names): {roles_list}]\n[SERVER MEMBERS (Partial List): {members_list}]"
@@ -346,14 +347,25 @@ async def generate_response(prompt: str, history: list = None, message: discord.
                     })
             
             # Second call with the results
-            chat_completion = await client.chat.completions.create(
-                messages=messages,
-                model=MODEL_NAME,
-                temperature=TEMPERATURE,
-                max_tokens=MAX_OUTPUT_TOKENS
-            )
-            response_message = chat_completion.choices[0].message
-            
+            try:
+                chat_completion = await client.chat.completions.create(
+                    messages=messages,
+                    model=MODEL_NAME,
+                    temperature=TEMPERATURE,
+                    max_tokens=MAX_OUTPUT_TOKENS
+                )
+                response_message = chat_completion.choices[0].message
+            except RateLimitError as e:
+                logger.error(f"Rate Limit Error on second call: {e}")
+                # Fallback to returning the raw tool results if we can't generate a natural response
+                fallback_responses = []
+                for msg in messages:
+                    if msg.get("role") == "tool":
+                        fallback_responses.append(msg.get("content", ""))
+                if fallback_responses:
+                    return "*(Rate limit hit, but I executed your command!)*\n" + "\n".join(fallback_responses)
+                return "my brain just lagged 💀 (Rate limit hit on Groq API)"
+                
         content = response_message.content
         if content:
             # Strip out reasoning blocks like <think>...</think>, even if unclosed
@@ -366,7 +378,7 @@ async def generate_response(prompt: str, history: list = None, message: discord.
             
     except RateLimitError as e:
         logger.error(f"Rate Limit Error: {e}")
-        return ""
+        return "my brain just lagged 💀 (Rate limit hit on Groq API)"
     except Exception as e:
         logger.error(f"API Error: {e}")
-        return ""
+        return "my brain just lagged 💀 (An API error occurred)"
