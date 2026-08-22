@@ -12,6 +12,13 @@ def is_mr_fahrenheit():
         return name_match or owner_match
     return app_commands.check(predicate)
 
+def is_mr_fahrenheit_ctx():
+    def predicate(ctx: commands.Context) -> bool:
+        name_match = "fahrenheit" in ctx.author.name.lower() or "fahrenheit" in ctx.author.display_name.lower()
+        owner_match = ctx.guild and ctx.author.id == ctx.guild.owner_id
+        return name_match or owner_match
+    return commands.check(predicate)
+
 class AdminCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -98,6 +105,62 @@ class AdminCog(commands.Cog):
             await interaction.response.send_message("Nice try! 🚫 Only Mr. Fahrenheit is allowed to give me these orders.", ephemeral=True)
         else:
             await interaction.response.send_message(f"An error occurred: {error}", ephemeral=True)
+
+    # TEXT COMMAND FALLBACKS (If slash commands are broken)
+    
+    @commands.command(name="kick")
+    @is_mr_fahrenheit_ctx()
+    async def txt_kick(self, ctx, member: discord.Member, *, reason: str = "No reason provided"):
+        try:
+            await member.kick(reason=reason)
+            await ctx.send(f"Done, boss. {member.mention} has been kicked. Reason: {reason}")
+        except discord.Forbidden:
+            await ctx.send("I don't have permission to kick this member. Make sure my role is higher than theirs!")
+        except Exception as e:
+            await ctx.send(f"An error occurred: {e}")
+
+    @commands.command(name="ban")
+    @is_mr_fahrenheit_ctx()
+    async def txt_ban(self, ctx, member: discord.Member, *, reason: str = "No reason provided"):
+        try:
+            await member.ban(reason=reason)
+            await ctx.send(f"Done, boss. {member.mention} has been banned. Reason: {reason}")
+        except discord.Forbidden:
+            await ctx.send("I don't have permission to ban this member. Make sure my role is higher than theirs!")
+        except Exception as e:
+            await ctx.send(f"An error occurred: {e}")
+
+    @commands.command(name="give_role")
+    @is_mr_fahrenheit_ctx()
+    async def txt_give_role(self, ctx, member: discord.Member, *, role: discord.Role):
+        try:
+            await member.add_roles(role)
+            await ctx.send(f"Done, boss. Gave {role.name} to {member.mention}.")
+        except discord.Forbidden:
+            await ctx.send("I don't have permission to manage this role. Make sure my role is higher than the role I'm trying to assign!")
+        except Exception as e:
+            await ctx.send(f"An error occurred: {e}")
+
+    @commands.command(name="remove_role")
+    @is_mr_fahrenheit_ctx()
+    async def txt_remove_role(self, ctx, member: discord.Member, *, role: discord.Role):
+        try:
+            await member.remove_roles(role)
+            await ctx.send(f"Done, boss. Removed {role.name} from {member.mention}.")
+        except discord.Forbidden:
+            await ctx.send("I don't have permission to manage this role.")
+        except Exception as e:
+            await ctx.send(f"An error occurred: {e}")
+
+    @txt_kick.error
+    @txt_ban.error
+    @txt_give_role.error
+    @txt_remove_role.error
+    async def txt_admin_error(self, ctx, error):
+        if isinstance(error, commands.CheckFailure):
+            await ctx.send("Nice try! 🚫 Only Mr. Fahrenheit is allowed to give me these orders.")
+        else:
+            await ctx.send(f"An error occurred: {error}")
 
 async def setup(bot):
     await bot.add_cog(AdminCog(bot))

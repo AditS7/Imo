@@ -72,10 +72,13 @@ class ImoBot(commands.Bot):
                         logger.error(f"Failed to send welcome message: {e}")
 
     async def on_message(self, message: discord.Message):
-        # We override on_message to handle natural language triggers
-        # and ignore the default command prefix handling (unless we want hybrid)
-        
-        # Handle natural conversation
+        # Allow standard @Imo <command> prefix commands to process first
+        ctx = await self.get_context(message)
+        if ctx.valid:
+            await self.invoke(ctx)
+            return # Skip AI response since this was a real admin command!
+            
+        # Handle natural conversation for everything else
         await handle_message(self, message)
 
 def main():
