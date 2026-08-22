@@ -20,7 +20,7 @@ class ImoBot(commands.Bot):
         intents.members = True  # Added to track member joins
 
         super().__init__(
-            command_prefix=commands.when_mentioned,
+            command_prefix=commands.when_mentioned_or("!", "?"),
             intents=intents,
             help_command=None  # Disable default help command
         )
