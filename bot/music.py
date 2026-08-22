@@ -89,7 +89,7 @@ class Music(commands.Cog):
                         pass
 
                     try:
-                        self.vc = await channel.connect(timeout=60.0)
+                        self.vc = await channel.connect(timeout=60.0, self_deaf=True)
                     except Exception as e:
                         return await ctx.send(f"Failed to join voice channel: {e}")
         elif self.vc.channel != channel:
