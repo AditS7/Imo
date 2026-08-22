@@ -6,10 +6,30 @@ import re
 import discord
 from datetime import datetime
 from openai import AsyncOpenAI, RateLimitError
-from bot.config import MODEL_NAME, TEMPERATURE, MAX_OUTPUT_TOKENS
+from bot.config import MODEL_NAME, TEMPERATURE, MAX_OUTPUT_TOKENS, FALLBACK_MODELS
 from bot.personality import SYSTEM_INSTRUCTION
 
 logger = logging.getLogger(__name__)
+
+async def chat_completion_with_fallback(client, **kwargs):
+    models_to_try = []
+    if kwargs.get("model"):
+        models_to_try.append(kwargs["model"])
+    for m in FALLBACK_MODELS:
+        if m not in models_to_try:
+            models_to_try.append(m)
+            
+    last_error = None
+    for model in models_to_try:
+        kwargs["model"] = model
+        try:
+            logger.info(f"AI generating using model: {model}")
+            return await client.chat.completions.create(**kwargs)
+        except Exception as e:
+            logger.warning(f"Model {model} failed: {e}")
+            last_error = e
+            
+    raise last_error
 
 async def execute_admin_action(action: str, target_user: str, role_name: str, reason: str, message: discord.Message) -> str:
     # 1. Authorization Check
@@ -260,7 +280,8 @@ async def generate_response(prompt: str, history: list = None, message: discord.
             forced_tool_choice = {"type": "function", "function": {"name": "admin_command"}}
 
         # Initial call
-        chat_completion = await client.chat.completions.create(
+        chat_completion = await chat_completion_with_fallback(
+            client=client,
             messages=messages,
             model=MODEL_NAME,
             temperature=TEMPERATURE,
@@ -351,7 +372,8 @@ async def generate_response(prompt: str, history: list = None, message: discord.
             
             # Second call with the results
             try:
-                chat_completion = await client.chat.completions.create(
+                chat_completion = await chat_completion_with_fallback(
+                    client=client,
                     messages=messages,
                     model=MODEL_NAME,
                     temperature=TEMPERATURE,
