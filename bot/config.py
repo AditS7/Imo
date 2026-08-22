@@ -19,11 +19,7 @@ MAX_HISTORY_MESSAGES = int(os.getenv("MAX_HISTORY_MESSAGES", "3"))
 # AI Settings
 MODEL_NAME = "qwen/qwen3.6-27b"
 FALLBACK_MODELS = [
-    {
-        "model": "meta-llama/Meta-Llama-3-8B-Instruct",
-        "api_key_env": "HF_API_KEY",
-        "base_url": "https://router.huggingface.co/hf-inference/v1"
-    }
+    "openai/gpt-oss-20b"
 ]
 TEMPERATURE = 0.7
 MAX_OUTPUT_TOKENS = 1800
