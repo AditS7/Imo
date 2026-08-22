@@ -82,7 +82,7 @@ async def generate_response(prompt: str, history: list = None) -> str:
         client = AsyncOpenAI(api_key=api_key, base_url=base_url, max_retries=0)
         
         current_time = datetime.now().strftime("%B %d, %Y")
-        dynamic_system_prompt = f"{SYSTEM_INSTRUCTION}\n\n[SYSTEM NOTE: The current date is {current_time}. If the user asks for the 'latest' information, append the current month/year to your web search queries (e.g. 'Kingshot meta {current_time}') to ensure you fetch the most recent news.]"
+        dynamic_system_prompt = f"{SYSTEM_INSTRUCTION}\n\n[SYSTEM NOTE: The current date is {current_time}. If the user asks for the 'latest' information, append the current month/year to your web search queries (e.g. 'Kingshot meta {current_time}') to ensure you fetch the most recent news. IMPORTANT: Keep your internal <think> block as brief as possible to prevent your output from being truncated by token limits.]"
 
         messages = [
             {"role": "system", "content": dynamic_system_prompt}
@@ -138,7 +138,7 @@ async def generate_response(prompt: str, history: list = None) -> str:
             messages=messages,
             model=MODEL_NAME,
             temperature=TEMPERATURE,
-            max_tokens=MAX_OUTPUT_TOKENS,
+            max_tokens=500,
             tools=tools,
             tool_choice="auto"
         )
