@@ -149,8 +149,8 @@ async def generate_response(prompt: str, history: list = None) -> str:
             
         content = response_message.content
         if content:
-            # Strip out reasoning blocks like <think>...</think>
-            content = re.sub(r'<think>.*?</think>', '', content, flags=re.DOTALL)
+            # Strip out reasoning blocks like <think>...</think>, even if unclosed
+            content = re.sub(r'<think>.*?(?:</think>|$)', '', content, flags=re.DOTALL)
             # Strip out hallucinated tool_call blocks (including unclosed ones at the end)
             content = re.sub(r'<tool_call>.*?(?:</tool_call>|$)', '', content, flags=re.DOTALL)
             content = content.strip()
