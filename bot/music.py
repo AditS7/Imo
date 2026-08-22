@@ -74,10 +74,31 @@ class Music(commands.Cog):
         if not self.vc or not self.vc.is_connected():
             async with self.connecting_lock:
                 if not self.vc or not self.vc.is_connected():
+                    # 1. First attempt: Standard connect
                     try:
-                        self.vc = await channel.connect(timeout=60.0, self_deaf=True)
+                        self.vc = await channel.connect(timeout=20.0)
                     except Exception as e:
-                        return await ctx.send(f"Failed to join voice channel: {e}")
+                        logger.warning(f"Initial connection failed ({e}). Attempting hard voice state reset...")
+                        
+                        # 2. Hard Reset: Clean up zombie clients and force Discord to drop the ghost session
+                        if ctx.guild.voice_client:
+                            try:
+                                await ctx.guild.voice_client.disconnect(force=True)
+                            except Exception:
+                                pass
+                                
+                        try:
+                            await ctx.guild.change_voice_state(channel=None)
+                            await asyncio.sleep(2)  # Give Discord time to process the drop
+                        except Exception:
+                            pass
+                            
+                        # 3. Second attempt after reset
+                        try:
+                            self.vc = await channel.connect(timeout=60.0)
+                        except Exception as reset_error:
+                            return await ctx.send(f"Failed to join voice channel even after reset. Please change the Voice Channel Region to Singapore or Europe and try again! Error: {reset_error}")
+                            
         elif self.vc.channel != channel:
             await self.vc.move_to(channel)
 
