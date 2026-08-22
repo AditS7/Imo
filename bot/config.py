@@ -20,7 +20,7 @@ MAX_HISTORY_MESSAGES = int(os.getenv("MAX_HISTORY_MESSAGES", "3"))
 MODEL_NAME = "qwen/qwen3.6-27b"
 FALLBACK_MODELS = [
     {
-        "model": "Qwen/Qwen2.5-72B-Instruct",
+        "model": "HuggingFaceH4/zephyr-7b-beta",
         "api_key_env": "HF_API_KEY",
         "base_url": "https://router.huggingface.co/hf-inference/v1"
     }
