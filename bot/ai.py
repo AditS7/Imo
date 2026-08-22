@@ -22,12 +22,22 @@ async def execute_admin_action(action: str, target_user: str, role_name: str, re
         return "Error: This command can only be run in a server."
 
     # 2. Find Member
-    target_user_lower = target_user.lower().replace("<@", "").replace(">", "").replace("!", "")
+    target_user_lower = target_user.lower().replace("<@", "").replace(">", "").replace("!", "").strip("@ ")
     member = None
+    
+    # Try exact match first
     for m in message.guild.members:
-        if str(m.id) == target_user_lower or target_user_lower in m.name.lower() or target_user_lower in m.display_name.lower():
+        if str(m.id) == target_user_lower or target_user_lower == m.name.lower() or target_user_lower == m.display_name.lower():
             member = m
             break
+            
+    # Fallback to partial match
+    if not member:
+        for m in message.guild.members:
+            if target_user_lower in m.name.lower() or target_user_lower in m.display_name.lower():
+                member = m
+                break
+                
     if not member:
         return f"Error: Could not find member matching '{target_user}'"
 
@@ -48,12 +58,22 @@ async def execute_admin_action(action: str, target_user: str, role_name: str, re
     if action in ["give_role", "remove_role"]:
         if not role_name:
             return "Error: role_name is required for this action."
-        role_name_lower = role_name.lower()
+        role_name_lower = role_name.lower().replace("<@&", "").replace(">", "").strip("@ ")
         role = None
+        
+        # Try exact match first
         for r in message.guild.roles:
-            if role_name_lower in r.name.lower():
+            if str(r.id) == role_name_lower or role_name_lower == r.name.lower():
                 role = r
                 break
+                
+        # Fallback to partial match
+        if not role:
+            for r in message.guild.roles:
+                if role_name_lower in r.name.lower():
+                    role = r
+                    break
+                    
         if not role:
             return f"Error: Could not find role matching '{role_name}'"
 
@@ -144,6 +164,11 @@ async def generate_response(prompt: str, history: list = None, message: discord.
         
         current_time = datetime.now().strftime("%B %d, %Y")
         dynamic_system_prompt = f"{SYSTEM_INSTRUCTION}\n\n[SYSTEM NOTE: The current date is {current_time}. If the user asks for the 'latest' information, append the current month/year to your web search queries (e.g. 'Kingshot meta {current_time}') to ensure you fetch the most recent news. IMPORTANT: Keep your internal <think> block as brief as possible to prevent your output from being truncated by token limits.]"
+        
+        if message and message.guild:
+            roles_list = ", ".join([r.name for r in message.guild.roles if r.name != "@everyone"])
+            members_list = ", ".join([m.display_name for m in list(message.guild.members)[:50]])
+            dynamic_system_prompt += f"\n\n[SERVER ROLES (Exact Names): {roles_list}]\n[SERVER MEMBERS (Partial List): {members_list}]"
 
         messages = [
             {"role": "system", "content": dynamic_system_prompt}
@@ -224,6 +249,12 @@ async def generate_response(prompt: str, history: list = None, message: discord.
             }
         ]
         
+        # Determine if we should force the admin tool to prevent model refusal
+        forced_tool_choice = "auto"
+        prompt_lower = prompt.lower()
+        if any(kw in prompt_lower for kw in ["give role", "give koya role", "give lara role", "remove role", "kick ", "ban "]):
+            forced_tool_choice = {"type": "function", "function": {"name": "admin_command"}}
+
         # Initial call
         chat_completion = await client.chat.completions.create(
             messages=messages,
@@ -231,7 +262,7 @@ async def generate_response(prompt: str, history: list = None, message: discord.
             temperature=TEMPERATURE,
             max_tokens=500,
             tools=tools,
-            tool_choice="auto"
+            tool_choice=forced_tool_choice
         )
         
         response_message = chat_completion.choices[0].message
@@ -291,7 +322,15 @@ async def generate_response(prompt: str, history: list = None, message: discord.
                         reason = args.get("reason", "No reason provided")
                     except Exception as e:
                         logger.error(f"Tool call error: {e}")
-                        continue
+                        # Fallback parsing
+                        action_match = re.search(r'"action"\s*:\s*"([^"]+)"', args_str)
+                        target_match = re.search(r'"target_user"\s*:\s*"([^"]+)"', args_str)
+                        role_match = re.search(r'"role_name"\s*:\s*"([^"]+)"', args_str)
+                        
+                        action = action_match.group(1) if action_match else ""
+                        target_user = target_match.group(1) if target_match else ""
+                        role_name = role_match.group(1) if role_match else ""
+                        reason = "No reason provided"
                         
                     logger.info(f"AI is executing admin command: {action} on {target_user}")
                     if message:
