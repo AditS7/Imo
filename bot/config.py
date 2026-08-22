@@ -19,9 +19,11 @@ MAX_HISTORY_MESSAGES = int(os.getenv("MAX_HISTORY_MESSAGES", "3"))
 # AI Settings
 MODEL_NAME = "qwen/qwen3.6-27b"
 FALLBACK_MODELS = [
-    "meta-llama/llama-prompt-guard-2-22m",  # The user's requested backup model
-    "llama3-8b-8192",  # A functional fallback for Groq since Prompt Guard is a classifier
-    "meta-llama/llama-3-8b-instruct:free"  # A functional fallback for OpenRouter
+    {
+        "model": "meta-llama/Meta-Llama-3-8B-Instruct",
+        "api_key_env": "HF_API_KEY",
+        "base_url": "https://api-inference.huggingface.co/v1/"
+    }
 ]
 TEMPERATURE = 0.7
 MAX_OUTPUT_TOKENS = 1800

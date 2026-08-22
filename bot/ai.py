@@ -12,22 +12,52 @@ from bot.personality import SYSTEM_INSTRUCTION
 logger = logging.getLogger(__name__)
 
 async def chat_completion_with_fallback(client, **kwargs):
-    models_to_try = []
-    if kwargs.get("model"):
-        models_to_try.append(kwargs["model"])
-    for m in FALLBACK_MODELS:
-        if m not in models_to_try:
-            models_to_try.append(m)
-            
+    # Try primary model first
     last_error = None
-    for model in models_to_try:
-        kwargs["model"] = model
+    primary_model = kwargs.get("model")
+    
+    if primary_model:
         try:
-            logger.info(f"AI generating using model: {model}")
+            logger.info(f"AI generating using model: {primary_model}")
             return await client.chat.completions.create(**kwargs)
         except Exception as e:
-            logger.warning(f"Model {model} failed: {e}")
+            logger.warning(f"Primary model {primary_model} failed: {e}")
             last_error = e
+
+    # Try fallback models from config
+    for fallback in FALLBACK_MODELS:
+        # Fallback can be a string (same client) or dict (new client)
+        if isinstance(fallback, dict):
+            fallback_model = fallback.get("model")
+            api_key_env = fallback.get("api_key_env")
+            base_url = fallback.get("base_url")
+            
+            api_key = os.getenv(api_key_env) if api_key_env else None
+            
+            if not api_key:
+                logger.warning(f"Skipping fallback {fallback_model}: {api_key_env} is missing from environment.")
+                continue
+                
+            fallback_client = AsyncOpenAI(api_key=api_key, base_url=base_url, max_retries=0)
+            kwargs["model"] = fallback_model
+            
+            try:
+                logger.info(f"AI generating using fallback model: {fallback_model} (External API)")
+                return await fallback_client.chat.completions.create(**kwargs)
+            except Exception as e:
+                logger.warning(f"Fallback model {fallback_model} failed: {e}")
+                last_error = e
+        else:
+            if fallback == primary_model:
+                continue
+                
+            kwargs["model"] = fallback
+            try:
+                logger.info(f"AI generating using fallback model: {fallback}")
+                return await client.chat.completions.create(**kwargs)
+            except Exception as e:
+                logger.warning(f"Fallback model {fallback} failed: {e}")
+                last_error = e
             
     raise last_error
 
