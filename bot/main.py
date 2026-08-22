@@ -17,6 +17,7 @@ class ImoBot(commands.Bot):
         intents = discord.Intents.default()
         intents.message_content = True  # Crucial for reading normal text messages
         intents.guilds = True
+        intents.members = True  # Added to track member joins
 
         super().__init__(
             command_prefix=commands.when_mentioned,
@@ -45,6 +46,30 @@ class ImoBot(commands.Bot):
         
         # Set status
         await self.change_presence(activity=discord.Game(name="hanging out"))
+
+    async def on_member_join(self, member: discord.Member):
+        logger.info(f"New member joined: {member.name} in {member.guild.name}")
+        
+        # Send welcome message to the specific General channel
+        welcome_channel_id = 1537882198454042666
+        channel = member.guild.get_channel(welcome_channel_id)
+        
+        if not channel:
+            logger.error(f"Could not find the welcome channel with ID {welcome_channel_id}")
+            return
+                    
+        if channel:
+            from bot.ai import generate_response
+            prompt = f"A new member named '{member.name}' just joined the 'Immortals' server! Give them a short, friendly, and casual welcome message."
+            
+            async with channel.typing():
+                response = await generate_response(prompt, [])
+                if response:
+                    clean_response = response.strip()
+                    try:
+                        await channel.send(f"Welcome {member.mention}! {clean_response}")
+                    except discord.HTTPException as e:
+                        logger.error(f"Failed to send welcome message: {e}")
 
     async def on_message(self, message: discord.Message):
         # We override on_message to handle natural language triggers
