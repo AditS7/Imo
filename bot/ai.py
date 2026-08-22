@@ -45,6 +45,23 @@ async def search_web(query: str) -> str:
             logger.error(f"Tavily search failed: {e}")
             return f"Search failed: {e}"
 
+async def read_url(url: str) -> str:
+    """Reads the full text content of a specific URL."""
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(
+                f"https://r.jina.ai/{url}",
+                timeout=10.0
+            )
+            response.raise_for_status()
+            content = response.text
+            if len(content) > 3000:
+                content = content[:3000] + "... [TRUNCATED FOR LENGTH]"
+            return content
+        except Exception as e:
+            logger.error(f"URL read failed: {e}")
+            return f"Failed to read the URL: {e}"
+
 async def generate_response(prompt: str, history: list = None) -> str:
     """
     Generates a response using the OpenAI SDK (OpenRouter)
@@ -96,6 +113,23 @@ async def generate_response(prompt: str, history: list = None) -> str:
                         "required": ["query"]
                     }
                 }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "read_url",
+                    "description": "Reads the full text content of a specific webpage. Use this when the user provides a direct link (URL) and asks you to read or extract information from it.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "url": {
+                                "type": "string",
+                                "description": "The exact URL to read (e.g., https://kingshot.net/gift-codes)."
+                            }
+                        },
+                        "required": ["url"]
+                    }
+                }
             }
         ]
         
@@ -136,6 +170,25 @@ async def generate_response(prompt: str, history: list = None) -> str:
                         "tool_call_id": tool_call.id,
                         "name": tool_call.function.name,
                         "content": search_results
+                    })
+                elif tool_call.function.name == "read_url":
+                    try:
+                        args_str = tool_call.function.arguments
+                        args = json.loads(args_str)
+                        url = args.get("url", "")
+                    except Exception as e:
+                        logger.error(f"Tool call error: {e}")
+                        match = re.search(r'"url"\s*:\s*"([^"]+)"', args_str)
+                        url = match.group(1) if match else ""
+                    
+                    logger.info(f"AI is reading URL: {url}")
+                    url_content = await read_url(url)
+                    
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": tool_call.function.name,
+                        "content": url_content
                     })
             
             # Second call with the results
