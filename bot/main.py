@@ -20,7 +20,7 @@ class ImoBot(commands.Bot):
         intents.members = True  # Added to track member joins
 
         super().__init__(
-            command_prefix=commands.when_mentioned_or("!", "?"),
+            command_prefix=commands.when_mentioned_or("!", "?", "imo ", "Imo "),
             intents=intents,
             help_command=None  # Disable default help command
         )
@@ -32,6 +32,7 @@ class ImoBot(commands.Bot):
         """
         # Load the admin cog
         await self.load_extension("bot.admin")
+        await self.load_extension("bot.music")
         
         # Sync slash commands with Discord
         try:
