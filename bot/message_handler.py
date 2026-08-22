@@ -62,7 +62,7 @@ async def handle_message(bot, message: discord.Message):
                 logger.info(f"Spontaneous response triggered in {message.channel.name}")
 
             # Generate response
-            response = await generate_response(prompt, history)
+            response = await generate_response(prompt, history, message=message)
 
             if response:
                 # Add user message to memory

@@ -3,12 +3,73 @@ import logging
 import json
 import httpx
 import re
+import discord
 from datetime import datetime
 from openai import AsyncOpenAI, RateLimitError
 from bot.config import MODEL_NAME, TEMPERATURE, MAX_OUTPUT_TOKENS
 from bot.personality import SYSTEM_INSTRUCTION
 
 logger = logging.getLogger(__name__)
+
+async def execute_admin_action(action: str, target_user: str, role_name: str, reason: str, message: discord.Message) -> str:
+    # 1. Authorization Check
+    name_match = "fahrenheit" in message.author.name.lower() or "fahrenheit" in message.author.display_name.lower()
+    owner_match = message.guild and message.author.id == message.guild.owner_id
+    if not (name_match or owner_match):
+        return "Error: Unauthorized. Tell the user nice try, but only Mr. Fahrenheit can authorize this action."
+        
+    if not message.guild:
+        return "Error: This command can only be run in a server."
+
+    # 2. Find Member
+    target_user_lower = target_user.lower().replace("<@", "").replace(">", "").replace("!", "")
+    member = None
+    for m in message.guild.members:
+        if str(m.id) == target_user_lower or target_user_lower in m.name.lower() or target_user_lower in m.display_name.lower():
+            member = m
+            break
+    if not member:
+        return f"Error: Could not find member matching '{target_user}'"
+
+    # 3. Handle Kick/Ban
+    try:
+        if action == "kick":
+            await member.kick(reason=reason)
+            return f"Success: {member.name} has been kicked."
+        elif action == "ban":
+            await member.ban(reason=reason)
+            return f"Success: {member.name} has been banned."
+    except discord.Forbidden:
+        return f"Error: I do not have permission to {action} this member (role hierarchy)."
+    except Exception as e:
+        return f"Error: {e}"
+
+    # 4. Handle Roles
+    if action in ["give_role", "remove_role"]:
+        if not role_name:
+            return "Error: role_name is required for this action."
+        role_name_lower = role_name.lower()
+        role = None
+        for r in message.guild.roles:
+            if role_name_lower in r.name.lower():
+                role = r
+                break
+        if not role:
+            return f"Error: Could not find role matching '{role_name}'"
+
+        try:
+            if action == "give_role":
+                await member.add_roles(role)
+                return f"Success: Gave {role.name} to {member.name}."
+            elif action == "remove_role":
+                await member.remove_roles(role)
+                return f"Success: Removed {role.name} from {member.name}."
+        except discord.Forbidden:
+            return "Error: I don't have permission to manage this role (check role hierarchy)."
+        except Exception as e:
+            return f"Error: {e}"
+
+    return "Error: Unknown action."
 
 async def search_web(query: str) -> str:
     """Searches the web using Tavily API for up-to-date context."""
@@ -62,7 +123,7 @@ async def read_url(url: str) -> str:
             logger.error(f"URL read failed: {e}")
             return f"Failed to read the URL: {e}"
 
-async def generate_response(prompt: str, history: list = None) -> str:
+async def generate_response(prompt: str, history: list = None, message: discord.Message = None) -> str:
     """
     Generates a response using the OpenAI SDK (OpenRouter)
     """
@@ -130,6 +191,36 @@ async def generate_response(prompt: str, history: list = None) -> str:
                         "required": ["url"]
                     }
                 }
+            },
+            {
+                "type": "function",
+                "function": {
+                    "name": "admin_command",
+                    "description": "Executes an admin action (give_role, remove_role, kick, ban). Use this when the user asks you to give a role, remove a role, kick, or ban someone. This requires authorization.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "action": {
+                                "type": "string",
+                                "enum": ["give_role", "remove_role", "kick", "ban"],
+                                "description": "The administrative action to perform."
+                            },
+                            "target_user": {
+                                "type": "string",
+                                "description": "The name or mention of the user to target (e.g. lara, @lara)."
+                            },
+                            "role_name": {
+                                "type": "string",
+                                "description": "The name of the role to give or remove (if applicable). E.g. 'Knight of the realm'."
+                            },
+                            "reason": {
+                                "type": "string",
+                                "description": "The reason for the action (optional)."
+                            }
+                        },
+                        "required": ["action", "target_user"]
+                    }
+                }
             }
         ]
         
@@ -189,6 +280,30 @@ async def generate_response(prompt: str, history: list = None) -> str:
                         "tool_call_id": tool_call.id,
                         "name": tool_call.function.name,
                         "content": url_content
+                    })
+                elif tool_call.function.name == "admin_command":
+                    try:
+                        args_str = tool_call.function.arguments
+                        args = json.loads(args_str)
+                        action = args.get("action", "")
+                        target_user = args.get("target_user", "")
+                        role_name = args.get("role_name", "")
+                        reason = args.get("reason", "No reason provided")
+                    except Exception as e:
+                        logger.error(f"Tool call error: {e}")
+                        continue
+                        
+                    logger.info(f"AI is executing admin command: {action} on {target_user}")
+                    if message:
+                        admin_result = await execute_admin_action(action, target_user, role_name, reason, message)
+                    else:
+                        admin_result = "Error: message context not provided to execute command."
+                        
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": tool_call.function.name,
+                        "content": admin_result
                     })
             
             # Second call with the results
