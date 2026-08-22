@@ -16,6 +16,7 @@ class Music(commands.Cog):
         self.vc = None
         self.is_playing = False
         self.current_song = None
+        self.connecting_lock = asyncio.Lock()
 
     def fetch_songs(self):
         try:
@@ -71,10 +72,12 @@ class Music(commands.Cog):
         channel = ctx.author.voice.channel
 
         if not self.vc or not self.vc.is_connected():
-            try:
-                self.vc = await channel.connect()
-            except Exception as e:
-                return await ctx.send(f"Failed to join voice channel: {e}")
+            async with self.connecting_lock:
+                if not self.vc or not self.vc.is_connected():
+                    try:
+                        self.vc = await channel.connect(timeout=60.0)
+                    except Exception as e:
+                        return await ctx.send(f"Failed to join voice channel: {e}")
         elif self.vc.channel != channel:
             await self.vc.move_to(channel)
 
