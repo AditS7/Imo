@@ -315,7 +315,7 @@ async def generate_response(prompt: str, history: list = None, message: discord.
             messages=messages,
             model=MODEL_NAME,
             temperature=TEMPERATURE,
-            max_tokens=500,
+            max_tokens=MAX_OUTPUT_TOKENS,
             tools=tools,
             tool_choice=forced_tool_choice
         )
@@ -423,11 +423,19 @@ async def generate_response(prompt: str, history: list = None, message: discord.
                 
         content = response_message.content
         if content:
+            original_content = content
             # Strip out reasoning blocks like <think>...</think>, even if unclosed
             content = re.sub(r'<think>.*?(?:</think>|$)', '', content, flags=re.DOTALL)
             # Strip out hallucinated tool_call blocks (including unclosed ones at the end)
             content = re.sub(r'<tool_call>.*?(?:</tool_call>|$)', '', content, flags=re.DOTALL)
             content = content.strip()
+            
+            # If the response is now empty, it means the model put its entire answer inside the <think> block
+            # or it hit the token limit while thinking. In this case, we should extract the text INSIDE the block!
+            if not content:
+                match = re.search(r'<think>(.*?)(?:</think>|$)', original_content, flags=re.DOTALL)
+                if match:
+                    content = match.group(1).strip()
         
         return content if content else ""
             
