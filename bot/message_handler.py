@@ -64,7 +64,7 @@ async def handle_message(bot, message: discord.Message):
             # Generate response
             response = await generate_response(prompt, history, message=message)
 
-            if response:
+            if response is not None:
                 # Add user message to memory
                 add_message(channel_id, user_name, message.content, is_bot=False)
                 
