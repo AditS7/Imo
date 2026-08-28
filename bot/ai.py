@@ -309,22 +309,35 @@ async def generate_response(prompt: str, history: list = None, message: discord.
         if any(kw in prompt_lower for kw in ["give role", "give koya role", "give lara role", "remove role", "kick ", "ban "]):
             forced_tool_choice = {"type": "function", "function": {"name": "admin_command"}}
 
-        # Initial call
-        chat_completion = await chat_completion_with_fallback(
-            client=client,
-            messages=messages,
-            model=MODEL_NAME,
-            temperature=TEMPERATURE,
-            max_tokens=MAX_OUTPUT_TOKENS,
-            tools=tools,
-            tool_choice=forced_tool_choice
-        )
-        
-        response_message = chat_completion.choices[0].message
-        
-        # Handle tool calls
-        if response_message.tool_calls:
-            # Append the assistant's message
+        for iteration in range(3):
+            try:
+                chat_completion = await chat_completion_with_fallback(
+                    client=client,
+                    messages=messages,
+                    model=MODEL_NAME,
+                    temperature=TEMPERATURE,
+                    max_tokens=MAX_OUTPUT_TOKENS,
+                    tools=tools,
+                    tool_choice=forced_tool_choice if iteration == 0 else "auto"
+                )
+            except RateLimitError as e:
+                logger.error(f"Rate Limit Error on iteration {iteration}: {e}")
+                if iteration > 0:
+                    # Fallback to returning the raw tool results if we can't generate a natural response
+                    fallback_responses = []
+                    for msg in messages:
+                        if msg.get("role") == "tool":
+                            fallback_responses.append(msg.get("content", ""))
+                    if fallback_responses:
+                        return "*(Rate limit hit, but I executed your command!)*\n" + "\n".join(fallback_responses)
+                return "my brain just lagged 💀 (Rate limit hit on Groq API)"
+                
+            response_message = chat_completion.choices[0].message
+            
+            if not response_message.tool_calls:
+                break # Final text response received
+                
+            # Append the assistant's message with tool calls
             messages.append(response_message.model_dump(exclude_unset=True))
             
             for tool_call in response_message.tool_calls:
@@ -335,10 +348,9 @@ async def generate_response(prompt: str, history: list = None, message: discord.
                         query = args.get("query", "")
                     except Exception as e:
                         logger.error(f"Tool call error: {e}")
-                        # Fallback regex extraction
                         match = re.search(r'"query"\s*:\s*"([^"]+)"', args_str)
                         query = match.group(1) if match else "Kingshot Century Games"
-                    
+                        
                     logger.info(f"AI is searching the web for: {query}")
                     search_results = await search_web(query)
                     
@@ -357,7 +369,7 @@ async def generate_response(prompt: str, history: list = None, message: discord.
                         logger.error(f"Tool call error: {e}")
                         match = re.search(r'"url"\s*:\s*"([^"]+)"', args_str)
                         url = match.group(1) if match else ""
-                    
+                        
                     logger.info(f"AI is reading URL: {url}")
                     url_content = await read_url(url)
                     
@@ -377,7 +389,6 @@ async def generate_response(prompt: str, history: list = None, message: discord.
                         reason = args.get("reason", "No reason provided")
                     except Exception as e:
                         logger.error(f"Tool call error: {e}")
-                        # Fallback parsing
                         action_match = re.search(r'"action"\s*:\s*"([^"]+)"', args_str)
                         target_match = re.search(r'"target_user"\s*:\s*"([^"]+)"', args_str)
                         role_match = re.search(r'"role_name"\s*:\s*"([^"]+)"', args_str)
@@ -399,28 +410,7 @@ async def generate_response(prompt: str, history: list = None, message: discord.
                         "name": tool_call.function.name,
                         "content": admin_result
                     })
-            
-            # Second call with the results
-            try:
-                chat_completion = await chat_completion_with_fallback(
-                    client=client,
-                    messages=messages,
-                    model=MODEL_NAME,
-                    temperature=TEMPERATURE,
-                    max_tokens=MAX_OUTPUT_TOKENS
-                )
-                response_message = chat_completion.choices[0].message
-            except RateLimitError as e:
-                logger.error(f"Rate Limit Error on second call: {e}")
-                # Fallback to returning the raw tool results if we can't generate a natural response
-                fallback_responses = []
-                for msg in messages:
-                    if msg.get("role") == "tool":
-                        fallback_responses.append(msg.get("content", ""))
-                if fallback_responses:
-                    return "*(Rate limit hit, but I executed your command!)*\n" + "\n".join(fallback_responses)
-                return "my brain just lagged 💀 (Rate limit hit on Groq API)"
-                
+
         content = response_message.content
         if content:
             original_content = content
