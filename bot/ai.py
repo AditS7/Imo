@@ -309,7 +309,15 @@ async def generate_response(prompt: str, history: list = None, message: discord.
         if any(kw in prompt_lower for kw in ["give role", "give koya role", "give lara role", "remove role", "kick ", "ban "]):
             forced_tool_choice = {"type": "function", "function": {"name": "admin_command"}}
 
-        for iteration in range(2):
+        MAX_TOOL_CALLS = 2
+        tool_call_count = 0
+        final_content = None
+
+        while tool_call_count <= MAX_TOOL_CALLS:
+            is_last_chance = (tool_call_count >= MAX_TOOL_CALLS)
+            current_tools = None if is_last_chance else tools
+            current_tool_choice = "none" if is_last_chance else (forced_tool_choice if tool_call_count == 0 else "auto")
+
             try:
                 chat_completion = await chat_completion_with_fallback(
                     client=client,
@@ -317,28 +325,30 @@ async def generate_response(prompt: str, history: list = None, message: discord.
                     model=MODEL_NAME,
                     temperature=TEMPERATURE,
                     max_tokens=MAX_OUTPUT_TOKENS,
-                    tools=tools,
-                    tool_choice=forced_tool_choice if iteration == 0 else "auto"
+                    tools=current_tools,
+                    tool_choice=current_tool_choice
                 )
             except Exception as e:
-                logger.error(f"API Error on iteration {iteration}: {e}")
-                if iteration > 0:
+                logger.error(f"API Error on generation (tool_call_count {tool_call_count}): {e}")
+                if tool_call_count > 0:
                     # Fallback to returning the raw tool results if we can't generate a natural response
                     fallback_responses = []
                     for msg in messages:
                         if msg.get("role") == "tool":
                             fallback_responses.append(msg.get("content", ""))
                     if fallback_responses:
-                        return "*(I hit a Groq API Rate Limit while thinking, but here are the raw tool results!)*\n" + "\n".join(fallback_responses)
-                return f"my brain just lagged 💀 (API Error on iteration {iteration}: {type(e).__name__})"
+                        return "*(I found some search results, but hit an API limit while putting together my full response!)*\n\n" + "\n\n".join(fallback_responses)
+                return f"my brain just lagged 💀 (API Error: {type(e).__name__})"
                 
             response_message = chat_completion.choices[0].message
             
             if not response_message.tool_calls:
+                final_content = response_message.content
                 break # Final text response received
                 
             # Append the assistant's message with tool calls
             messages.append(response_message.model_dump(exclude_unset=True))
+            tool_call_count += 1
             
             for tool_call in response_message.tool_calls:
                 if tool_call.function.name == "search_web":
@@ -411,7 +421,7 @@ async def generate_response(prompt: str, history: list = None, message: discord.
                         "content": admin_result
                     })
 
-        content = response_message.content
+        content = final_content if final_content else (response_message.content if 'response_message' in locals() and response_message else None)
         if content:
             original_content = content
             # Strip out reasoning blocks like <think>...</think>, even if unclosed
@@ -427,6 +437,12 @@ async def generate_response(prompt: str, history: list = None, message: discord.
                 if match:
                     content = match.group(1).strip()
         
+        # If content is still empty but tool results exist, provide the gathered info
+        if not content:
+            tool_contents = [m.get("content") for m in messages if m.get("role") == "tool" and m.get("content")]
+            if tool_contents:
+                content = f"Here is the information I found:\n\n" + "\n\n".join(tool_contents[:2])
+                
         return content if content else ""
             
     except Exception as e:
