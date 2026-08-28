@@ -12,21 +12,26 @@ from bot.personality import SYSTEM_INSTRUCTION
 logger = logging.getLogger(__name__)
 
 async def chat_completion_with_fallback(client, **kwargs):
+    # Clean kwargs so invalid tool/tool_choice combos are never passed to the API
+    clean_kwargs = {k: v for k, v in kwargs.items() if v is not None}
+    if "tools" not in clean_kwargs or clean_kwargs["tools"] is None:
+        clean_kwargs.pop("tools", None)
+        clean_kwargs.pop("tool_choice", None)
+
     # Try primary model first
     last_error = None
-    primary_model = kwargs.get("model")
+    primary_model = clean_kwargs.get("model")
     
     if primary_model:
         try:
             logger.info(f"AI generating using model: {primary_model}")
-            return await client.chat.completions.create(**kwargs)
+            return await client.chat.completions.create(**clean_kwargs)
         except Exception as e:
             logger.warning(f"Primary model {primary_model} failed: {e}")
             last_error = e
 
     # Try fallback models from config
     for fallback in FALLBACK_MODELS:
-        # Fallback can be a string (same client) or dict (new client)
         if isinstance(fallback, dict):
             fallback_model = fallback.get("model")
             api_key_env = fallback.get("api_key_env")
@@ -39,11 +44,11 @@ async def chat_completion_with_fallback(client, **kwargs):
                 continue
                 
             fallback_client = AsyncOpenAI(api_key=api_key, base_url=base_url, max_retries=0)
-            kwargs["model"] = fallback_model
+            clean_kwargs["model"] = fallback_model
             
             try:
                 logger.info(f"AI generating using fallback model: {fallback_model} (External API)")
-                return await fallback_client.chat.completions.create(**kwargs)
+                return await fallback_client.chat.completions.create(**clean_kwargs)
             except Exception as e:
                 logger.warning(f"Fallback model {fallback_model} failed: {e}")
                 last_error = e
@@ -51,13 +56,15 @@ async def chat_completion_with_fallback(client, **kwargs):
             if fallback == primary_model:
                 continue
                 
-            kwargs["model"] = fallback
+            clean_kwargs["model"] = fallback
             try:
                 logger.info(f"AI generating using fallback model: {fallback}")
-                return await client.chat.completions.create(**kwargs)
+                return await client.chat.completions.create(**clean_kwargs)
             except Exception as e:
                 logger.warning(f"Fallback model {fallback} failed: {e}")
                 last_error = e
+            
+    raise last_error
             
     raise last_error
 
@@ -147,7 +154,6 @@ async def search_web(query: str) -> str:
     if not api_key:
         return "Error: TAVILY_API_KEY is not set in the environment variables."
     
-    # Use advanced depth and more results to get the most recent and accurate information
     async with httpx.AsyncClient() as client:
         try:
             response = await client.post(
@@ -156,21 +162,31 @@ async def search_web(query: str) -> str:
                     "api_key": api_key,
                     "query": query,
                     "search_depth": "basic",
-                    "max_results": 3
+                    "max_results": 3,
+                    "include_answer": True
                 },
                 timeout=8.0
             )
             response.raise_for_status()
             data = response.json()
             results = data.get("results", [])
+            direct_answer = data.get("answer")
+            
             context = []
+            if direct_answer:
+                context.append(f"Summary Overview: {direct_answer}")
+                
             for res in results:
-                context.append(f"Source: {res.get('url')}\nContent: {res.get('content')}")
+                title = res.get('title', 'Guide')
+                content = res.get('content', '')
+                if content:
+                    # Clean out excess whitespace/newlines
+                    clean_text = " ".join(content.split())
+                    context.append(f"[{title}]: {clean_text}")
             
             full_context = "\n\n".join(context) if context else "No relevant results found."
-            # Truncate to save tokens and prevent rate limit errors on the second request
-            if len(full_context) > 1500:
-                full_context = full_context[:1500] + "... [TRUNCATED FOR LENGTH]"
+            if len(full_context) > 1200:
+                full_context = full_context[:1200] + "... [TRUNCATED]"
             return full_context
         except Exception as e:
             logger.error(f"Tavily search failed: {e}")
@@ -309,14 +325,14 @@ async def generate_response(prompt: str, history: list = None, message: discord.
         if any(kw in prompt_lower for kw in ["give role", "give koya role", "give lara role", "remove role", "kick ", "ban "]):
             forced_tool_choice = {"type": "function", "function": {"name": "admin_command"}}
 
-        MAX_TOOL_CALLS = 2
+        MAX_TOOL_CALLS = 1
         tool_call_count = 0
         final_content = None
 
         while tool_call_count <= MAX_TOOL_CALLS:
             is_last_chance = (tool_call_count >= MAX_TOOL_CALLS)
             current_tools = None if is_last_chance else tools
-            current_tool_choice = "none" if is_last_chance else (forced_tool_choice if tool_call_count == 0 else "auto")
+            current_tool_choice = None if is_last_chance else (forced_tool_choice if tool_call_count == 0 else "auto")
 
             try:
                 chat_completion = await chat_completion_with_fallback(
@@ -330,15 +346,7 @@ async def generate_response(prompt: str, history: list = None, message: discord.
                 )
             except Exception as e:
                 logger.error(f"API Error on generation (tool_call_count {tool_call_count}): {e}")
-                if tool_call_count > 0:
-                    # Fallback to returning the raw tool results if we can't generate a natural response
-                    fallback_responses = []
-                    for msg in messages:
-                        if msg.get("role") == "tool":
-                            fallback_responses.append(msg.get("content", ""))
-                    if fallback_responses:
-                        return "*(I found some search results, but hit an API limit while putting together my full response!)*\n\n" + "\n\n".join(fallback_responses)
-                return f"my brain just lagged 💀 (API Error: {type(e).__name__})"
+                return "my brain just lagged 💀 (API Error occurred while generating)"
                 
             response_message = chat_completion.choices[0].message
             
@@ -425,25 +433,22 @@ async def generate_response(prompt: str, history: list = None, message: discord.
         if content:
             original_content = content
             # Strip out reasoning blocks like <think>...</think>, even if unclosed
-            content = re.sub(r'<think>.*?(?:</think>|$)', '', content, flags=re.DOTALL)
+            cleaned = re.sub(r'<think>.*?(?:</think>|$)', '', content, flags=re.DOTALL)
             # Strip out hallucinated tool_call blocks (including unclosed ones at the end)
-            content = re.sub(r'<tool_call>.*?(?:</tool_call>|$)', '', content, flags=re.DOTALL)
-            content = content.strip()
+            cleaned = re.sub(r'<tool_call>.*?(?:</tool_call>|$)', '', cleaned, flags=re.DOTALL)
+            cleaned = cleaned.strip()
             
             # If the response is now empty, it means the model put its entire answer inside the <think> block
-            # or it hit the token limit while thinking. In this case, we should extract the text INSIDE the block!
-            if not content:
+            if cleaned:
+                content = cleaned
+            else:
                 match = re.search(r'<think>(.*?)(?:</think>|$)', original_content, flags=re.DOTALL)
-                if match:
+                if match and match.group(1).strip():
                     content = match.group(1).strip()
+                else:
+                    content = ""
         
-        # If content is still empty but tool results exist, provide the gathered info
-        if not content:
-            tool_contents = [m.get("content") for m in messages if m.get("role") == "tool" and m.get("content")]
-            if tool_contents:
-                content = f"Here is the information I found:\n\n" + "\n\n".join(tool_contents[:2])
-                
-        return content if content else ""
+        return content if content else "*just stares blankly* (I overthought that and forgot to speak 💀)"
             
     except Exception as e:
         logger.error(f"API Error: {e}")
