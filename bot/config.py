@@ -5,8 +5,6 @@ load_dotenv()
 
 # Secrets
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
-ADMIN_USER_ID = os.getenv("ADMIN_USER_ID") # Discord User ID of the primary admin
 
 # Spontaneous settings
 SPONTANEOUS_REPLY_ENABLED = os.getenv("SPONTANEOUS_REPLY_ENABLED", "true").lower() == "true"

@@ -5,7 +5,7 @@ import httpx
 import re
 import discord
 from datetime import datetime
-from openai import AsyncOpenAI, RateLimitError
+from openai import AsyncOpenAI
 from bot.config import MODEL_NAME, TEMPERATURE, MAX_OUTPUT_TOKENS, FALLBACK_MODELS
 from bot.personality import SYSTEM_INSTRUCTION
 
