@@ -309,7 +309,7 @@ async def generate_response(prompt: str, history: list = None, message: discord.
         if any(kw in prompt_lower for kw in ["give role", "give koya role", "give lara role", "remove role", "kick ", "ban "]):
             forced_tool_choice = {"type": "function", "function": {"name": "admin_command"}}
 
-        for iteration in range(3):
+        for iteration in range(2):
             try:
                 chat_completion = await chat_completion_with_fallback(
                     client=client,
