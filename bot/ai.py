@@ -149,13 +149,14 @@ async def execute_admin_action(action: str, target_user: str, role_name: str, re
     return "Error: Unknown action."
 
 async def search_web(query: str) -> str:
-    """Searches the web using Tavily API for up-to-date context."""
+    """Searches the web using Tavily API for up-to-date context, prioritizing kingshotguides.com first."""
     api_key = os.getenv("TAVILY_API_KEY")
     if not api_key:
         return "Error: TAVILY_API_KEY is not set in the environment variables."
     
     async with httpx.AsyncClient() as client:
         try:
+            # 1. Primary search: Check kingshotguides.com / kingshotguide.com first
             response = await client.post(
                 "https://api.tavily.com/search",
                 json={
@@ -163,7 +164,8 @@ async def search_web(query: str) -> str:
                     "query": query,
                     "search_depth": "basic",
                     "max_results": 3,
-                    "include_answer": True
+                    "include_answer": True,
+                    "include_domains": ["kingshotguides.com", "kingshotguide.com"]
                 },
                 timeout=8.0
             )
@@ -171,6 +173,25 @@ async def search_web(query: str) -> str:
             data = response.json()
             results = data.get("results", [])
             direct_answer = data.get("answer")
+            
+            # 2. Fallback: If no results found on kingshotguides, search the whole web
+            if not results and not direct_answer:
+                logger.info(f"No results found on kingshotguides.com for '{query}', searching broad web.")
+                response = await client.post(
+                    "https://api.tavily.com/search",
+                    json={
+                        "api_key": api_key,
+                        "query": query,
+                        "search_depth": "basic",
+                        "max_results": 3,
+                        "include_answer": True
+                    },
+                    timeout=8.0
+                )
+                response.raise_for_status()
+                data = response.json()
+                results = data.get("results", [])
+                direct_answer = data.get("answer")
             
             context = []
             if direct_answer:
@@ -325,7 +346,7 @@ async def generate_response(prompt: str, history: list = None, message: discord.
         if any(kw in prompt_lower for kw in ["give role", "give koya role", "give lara role", "remove role", "kick ", "ban "]):
             forced_tool_choice = {"type": "function", "function": {"name": "admin_command"}}
 
-        MAX_TOOL_CALLS = 1
+        MAX_TOOL_CALLS = 2
         tool_call_count = 0
         final_content = None
 
@@ -333,6 +354,12 @@ async def generate_response(prompt: str, history: list = None, message: discord.
             is_last_chance = (tool_call_count >= MAX_TOOL_CALLS)
             current_tools = None if is_last_chance else tools
             current_tool_choice = None if is_last_chance else (forced_tool_choice if tool_call_count == 0 else "auto")
+
+            if is_last_chance and tool_call_count > 0:
+                messages.append({
+                    "role": "user",
+                    "content": "(System Note: All web research is complete. Directly provide your final, helpful answer to the user in Discord chat as Imo. Do NOT output internal monologues or notes about searching more.)"
+                })
 
             try:
                 chat_completion = await chat_completion_with_fallback(
