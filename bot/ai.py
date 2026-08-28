@@ -169,8 +169,8 @@ async def search_web(query: str) -> str:
             
             full_context = "\n\n".join(context) if context else "No relevant results found."
             # Truncate to save tokens and prevent rate limit errors on the second request
-            if len(full_context) > 2500:
-                full_context = full_context[:2500] + "... [TRUNCATED FOR LENGTH]"
+            if len(full_context) > 1500:
+                full_context = full_context[:1500] + "... [TRUNCATED FOR LENGTH]"
             return full_context
         except Exception as e:
             logger.error(f"Tavily search failed: {e}")
@@ -320,8 +320,8 @@ async def generate_response(prompt: str, history: list = None, message: discord.
                     tools=tools,
                     tool_choice=forced_tool_choice if iteration == 0 else "auto"
                 )
-            except RateLimitError as e:
-                logger.error(f"Rate Limit Error on iteration {iteration}: {e}")
+            except Exception as e:
+                logger.error(f"API Error on iteration {iteration}: {e}")
                 if iteration > 0:
                     # Fallback to returning the raw tool results if we can't generate a natural response
                     fallback_responses = []
@@ -329,8 +329,8 @@ async def generate_response(prompt: str, history: list = None, message: discord.
                         if msg.get("role") == "tool":
                             fallback_responses.append(msg.get("content", ""))
                     if fallback_responses:
-                        return "*(Rate limit hit, but I executed your command!)*\n" + "\n".join(fallback_responses)
-                return "my brain just lagged 💀 (Rate limit hit on Groq API)"
+                        return "*(I hit a Groq API Rate Limit while thinking, but here are the raw tool results!)*\n" + "\n".join(fallback_responses)
+                return f"my brain just lagged 💀 (API Error on iteration {iteration}: {type(e).__name__})"
                 
             response_message = chat_completion.choices[0].message
             
@@ -429,9 +429,6 @@ async def generate_response(prompt: str, history: list = None, message: discord.
         
         return content if content else ""
             
-    except RateLimitError as e:
-        logger.error(f"Rate Limit Error: {e}")
-        return "my brain just lagged 💀 (Rate limit hit on Groq API)"
     except Exception as e:
         logger.error(f"API Error: {e}")
         return "my brain just lagged 💀 (An API error occurred)"

@@ -2,7 +2,7 @@ import express from 'express';
 import { spawn } from 'child_process';
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = 3000;
 
 app.get('/', (req, res) => {
   res.send(`
