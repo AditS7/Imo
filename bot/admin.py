@@ -31,11 +31,19 @@ class AdminCog(commands.Cog):
     @app_commands.command(name="settings", description="View current settings.")
     @app_commands.default_permissions(administrator=True)
     async def settings(self, interaction: discord.Interaction):
+        from bot.kingdom import get_kingdom_channel_id, KINGDOM_START_DATE, KINGDOM_NUMBER
+        import datetime
+        k_channel_id = get_kingdom_channel_id()
+        k_channel_str = f"<#{k_channel_id}>" if k_channel_id else "Not set (Use `/set_kingdom_channel`)"
+        today_utc = datetime.datetime.now(datetime.timezone.utc).date()
+        age = (today_utc - KINGDOM_START_DATE).days
         msg = (
             f"**Imo Settings**\n"
-            f"Spontaneous Replies: {'Enabled' if config.SPONTANEOUS_REPLY_ENABLED else 'Disabled'}\n"
-            f"Spontaneous Chance: {config.SPONTANEOUS_REPLY_CHANCE * 100}%\n"
-            f"Model: {config.MODEL_NAME}"
+            f"• Spontaneous Replies: {'Enabled' if config.SPONTANEOUS_REPLY_ENABLED else 'Disabled'}\n"
+            f"• Spontaneous Chance: {config.SPONTANEOUS_REPLY_CHANCE * 100}%\n"
+            f"• Model: {config.MODEL_NAME}\n"
+            f"• Kingdom {KINGDOM_NUMBER} Age: {age} days old (Started 8 Aug 2026)\n"
+            f"• Kingdom Announcement Channel: {k_channel_str} (Daily at 00:00 UTC)"
         )
         await interaction.response.send_message(msg, ephemeral=True)
 

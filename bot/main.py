@@ -30,8 +30,9 @@ class ImoBot(commands.Bot):
         Executed when the bot is setting up.
         Load cogs (slash commands) and sync the command tree.
         """
-        # Load the admin cog
+        # Load extensions
         await self.load_extension("bot.admin")
+        await self.load_extension("bot.kingdom")
         
         # Sync slash commands with Discord
         try:
