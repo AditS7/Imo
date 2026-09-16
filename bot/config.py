@@ -21,7 +21,7 @@ _raw_kingdom_channel = os.getenv("KINGDOM_CHANNEL_ID")
 KINGDOM_CHANNEL_ID = int(_raw_kingdom_channel) if _raw_kingdom_channel and _raw_kingdom_channel.isdigit() else None
 
 # AI Settings
-MODEL_NAME = "qwen/qwen3.6-27b"
+MODEL_NAME = os.getenv("MODEL_NAME", "qwen/qwen3.8-27b")
 FALLBACK_MODELS = [
     {
         "model": "openai/gpt-oss-20b",
