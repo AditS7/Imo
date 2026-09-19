@@ -1,0 +1,8 @@
+{
+  "name": "Imo Discord Bot",
+  "description": "Kingshot and Immortals Discord AI Bot with daily kingdom updates, guide search, and server administration",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
